@@ -46,6 +46,9 @@
     "engines": {
         "node": ">=26"
     },
+    "publishConfig": {
+        "access": "public"
+    },
     "peerDependencies": {
         "react": ">=18"
     },
