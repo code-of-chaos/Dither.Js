@@ -1,7 +1,7 @@
 {
     "name": "@code-of-chaos/dither",
-    "version": "0.1.0",
-    "description": "Animated bitmap-dithered gradient backgrounds for React, with a tileable Perlin/fBm noise engine for generating custom dither tiles.",
+    "version": "0.2.0",
+    "description": "Framework-agnostic animated bitmap-dithered gradient backgrounds, with a tileable Perlin/fBm noise engine for generating custom dither tiles.",
     "license": "GPL-3.0-only",
     "type": "module",
     "sideEffects": [
@@ -49,18 +49,9 @@
     "publishConfig": {
         "access": "public"
     },
-    "peerDependencies": {
-        "react": ">=18"
-    },
     "devDependencies": {
         "@biomejs/biome": "^2.6.5",
-        "@testing-library/dom": "^10.4.2",
-        "@testing-library/react": "^16.3.3",
-        "@types/react": "^19.3.0",
-        "@vitejs/plugin-react": "^6.2.1",
         "happy-dom": "^21.0.4",
-        "react": "^19.2.0",
-        "react-dom": "^19.2.0",
         "typescript": "~7.0.2",
         "vite": "^8.3.6",
         "vitest": "^5.1.0"

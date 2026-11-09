@@ -1,12 +1,13 @@
 # Dither.Js
 
-Animated bitmap-dithered gradient backgrounds for React, with a tileable
-Perlin/fBm noise engine for generating your own dither tiles.
+Framework-agnostic animated bitmap-dithered gradient backgrounds - plain
+TypeScript, DOM and CSS - with a tileable Perlin/fBm noise engine for
+generating your own dither tiles.
 
 The texture is a real Bayer-dithered noise bitmap (Perlin islands + fine
 detail), generated once on a canvas and scrolled with a GPU-friendly CSS
-transform. Everything visual - colors, grid, fade, speed, direction - is a
-prop, driven through CSS custom properties so it can be animated at runtime.
+transform. Everything visual - colors, grid, fade, speed, direction - is an
+option, driven through CSS custom properties so it can be animated at runtime.
 
 ## Install
 
@@ -16,22 +17,128 @@ npm install @code-of-chaos/dither
 
 ## Usage
 
-```tsx
-import { DitherGridBackground } from "@code-of-chaos/dither";
+```ts
+import { DitherBackground } from "@code-of-chaos/dither";
 import "@code-of-chaos/dither/style.css";
 
-export function Page() {
-    return (
-        <DitherGridBackground className="min-h-screen w-full">
-            <h1>Hello world</h1>
-        </DitherGridBackground>
-    );
+const background = new DitherBackground({ noiseColor: "var(--accent)" });
+background.mount(document.getElementById("root")!);
+
+// Animate at runtime - cheap, the tile only rebuilds for tile inputs:
+background.update({ gridSize: 64, noiseOpacity: 0.4 });
+
+// Revert the element to its unmounted state:
+background.destroy();
+```
+
+`mount()` decorates the element: it prepends the hidden background layers
+and applies the CSS custom properties. Anything else in the element renders
+above the layers, so frameworks keep rendering their children normally.
+
+### Framework recipes
+
+React (class, OOP):
+
+```tsx
+import { Component, createRef, type ReactNode } from "react";
+import {
+    DitherBackground,
+    type DitherBackgroundOptions,
+} from "@code-of-chaos/dither";
+import "@code-of-chaos/dither/style.css";
+
+type Props = { options?: DitherBackgroundOptions; children?: ReactNode };
+
+export class DitherBackdrop extends Component<Props> {
+    private ref = createRef<HTMLDivElement>();
+    private background?: DitherBackground;
+
+    override componentDidMount(): void {
+        this.background = new DitherBackground(this.props.options);
+        this.background.mount(this.ref.current!);
+    }
+
+    override componentDidUpdate(prev: Props): void {
+        if (prev.options !== this.props.options) {
+            this.background?.update(this.props.options ?? {});
+        }
+    }
+
+    override componentWillUnmount(): void {
+        this.background?.destroy();
+    }
+
+    override render(): ReactNode {
+        return <div ref={this.ref}>{this.props.children}</div>;
+    }
 }
 ```
 
-Every visual property is optional (defaults in parentheses):
+Next.js: the tile needs a browser canvas - mount inside a client component
+(`"use client"`) or in `useEffect`.
 
-| Prop                                                            | Purpose                                                                     |
+Angular (directive):
+
+```ts
+@Directive({ selector: "[ditherBackground]" })
+export class DitherBackgroundDirective
+    implements AfterViewInit, OnChanges, OnDestroy
+{
+    @Input() ditherBackground: DitherBackgroundOptions = {};
+
+    private background?: DitherBackground;
+
+    constructor(private el: ElementRef<HTMLElement>) {}
+
+    ngAfterViewInit(): void {
+        this.background = new DitherBackground(this.ditherBackground);
+        this.background.mount(this.el.nativeElement);
+    }
+
+    ngOnChanges(): void {
+        this.background?.update(this.ditherBackground);
+    }
+
+    ngOnDestroy(): void {
+        this.background?.destroy();
+    }
+}
+```
+
+Vue (composable):
+
+```ts
+export function useDitherBackground(
+    el: Ref<HTMLElement | null>,
+    options: Ref<DitherBackgroundOptions>,
+) {
+    let background: DitherBackground | undefined;
+
+    onMounted(() => {
+        background = new DitherBackground(options.value);
+        background.mount(el.value!);
+    });
+    watch(options, (next) => background?.update(next), { deep: true });
+    onBeforeUnmount(() => background?.destroy());
+}
+```
+
+Svelte (action):
+
+```ts
+export function dither(node: HTMLElement, options: DitherBackgroundOptions = {}) {
+    const background = new DitherBackground(options);
+    background.mount(node);
+    return {
+        update: (next: DitherBackgroundOptions) => background.update(next),
+        destroy: () => background.destroy(),
+    };
+}
+```
+
+Every visual option is optional (defaults in parentheses):
+
+| Option                                                          | Purpose                                                                     |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `backgroundColor`                                               | Base fill, any CSS color or gradient                                        |
 | `gridColor`, `gridSize`, `gridOpacity`                          | Structural grid lines (steel, 41px, 0.23)                                   |
@@ -43,7 +150,7 @@ Every visual property is optional (defaults in parentheses):
 | `noiseClampLow`, `noiseClampHigh`                               | Soft-clamp the noise: clean voids low, no saturation high                   |
 | `noiseTileCells`, `noiseSeed`                                   | Tile resolution and reproducible randomness                                 |
 | `noiseSpeed`, `noiseAngle`, `noiseTravel`                       | Scroll animation: seconds per loop, direction in degrees, distance in tiles |
-| `fadeStart`, `fadeEnd`                                          | Vertical fade of the dither layer (35%, 82%)                                |
+| `fadeStart`, `fadeEnd`                                          | Vertical fade of the dither layer (0%, 90%)                                 |
 | `animateNoise`, `animateGlow`                                   | Enable the scroll / ambient glow (both on)                                  |
 
 Colors accept `var(--token, fallback)` references; they are resolved against
@@ -53,6 +160,8 @@ the document root, so theme variables work as parameters.
 
 - `DitherTile` - generates a seamless Bayer-dithered PNG data URL from the
   noise fields; use it for static overlays and textures.
+- `DitherBackgroundView` - resolves options to defaults and computes the CSS
+  custom properties; useful when writing a thin framework wrapper.
 - `PerlinNoise` / `FractalBrownianNoise` - tileable gradient noise.
 - `MathUtils` / `RgbColor` - helpers used by the engine.
 
@@ -95,10 +204,10 @@ Notes:
 
 ## Notes
 
-- The tile is generated in the browser (canvas), so the component is
-  client-side only.
+- The tile is generated in the browser (canvas), so mounting is client-side
+  only.
 - `prefers-reduced-motion` disables the animations.
-- React 18+; class component, no runtime dependencies besides React.
+- Zero runtime dependencies; plain TypeScript + DOM + CSS.
 
 ## License
 

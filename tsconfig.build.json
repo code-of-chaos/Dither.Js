@@ -4,7 +4,6 @@
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "module": "ESNext",
         "moduleResolution": "bundler",
-        "jsx": "react-jsx",
 
         "declaration": true,
         "declarationMap": true,
@@ -20,5 +19,5 @@
         "noUnusedParameters": true
     },
     "include": ["src"],
-    "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+    "exclude": ["src/**/*.test.ts"]
 }

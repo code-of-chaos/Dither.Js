@@ -1,14 +1,19 @@
 /*
- * Layered background for .dither-grid-background:
+ * Layered background for .dither-grid-background (applied by DitherBackground
+ * to the element it mounts on):
  *   __noise / __noise-texture  — dithered tile, fade-masked, transform-scrolled
  *                                (the texture is oversized and clipped by the
  *                                wrapper so the scroll never exposes edges)
  *   __grid                     — static CSS grid lines
  *   --glow::before             — optional ambient glow
- *   __content                  — renders children above all layers
+ *   __content                  — optional wrapper that pins children above
+ *                                all layers (in-flow content paints above the
+ *                                negative-z layers regardless)
  *
  * Colors, sizes and animation timing come from CSS custom properties set by
- * the React component, so they stay animatable at runtime.
+ * DitherBackground, so they stay animatable at runtime. The layers sit at
+ * z-index -1 inside the isolated stacking context: above the base fill,
+ * below anything else in the element.
  */
 
 /*noinspection CssUnresolvedCustomProperty*/
@@ -25,7 +30,7 @@
 .dither-grid-background__noise {
     position: absolute;
     inset: 0;
-    z-index: 0;
+    z-index: -1;
     pointer-events: none;
     overflow: hidden;
 
@@ -69,7 +74,7 @@
 
 /*
  * Scrolls by exactly one tile (or a whole-tile multiple) per loop — the
- * travel distance is snapped to tile multiples in DitherGridBackground,
+ * travel distance is snapped to tile multiples in DitherBackgroundView,
  * so the jump back to the start is visually seamless.
  */
 /*noinspection CssUnresolvedCustomProperty*/
@@ -87,7 +92,7 @@
 .dither-grid-background__grid {
     position: absolute;
     inset: 0;
-    z-index: 0;
+    z-index: -1;
     pointer-events: none;
 
     background-image:
@@ -104,7 +109,7 @@
     content: "";
     position: absolute;
     inset: -20%;
-    z-index: 0;
+    z-index: -1;
     pointer-events: none;
 
     background: radial-gradient(
@@ -129,6 +134,7 @@
     }
 }
 
+/* Optional convenience wrapper for content that should fill the background. */
 .dither-grid-background__content {
     position: relative;
     z-index: 1;

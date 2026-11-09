@@ -1,5 +1,9 @@
-export type { DitherGridBackgroundProps } from "./DitherGridBackground";
-export { DitherGridBackground } from "./DitherGridBackground";
+export { DitherBackground } from "./DitherBackground";
+export type {
+    DitherBackgroundCssVars,
+    DitherBackgroundOptions,
+} from "./DitherBackgroundView";
+export { DitherBackgroundView } from "./DitherBackgroundView";
 export type { DitherTileOptions } from "./DitherTile";
 export { DitherTile } from "./DitherTile";
 export { FractalBrownianNoise } from "./FractalBrownianNoise";
