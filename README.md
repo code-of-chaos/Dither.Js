@@ -11,14 +11,14 @@ prop, driven through CSS custom properties so it can be animated at runtime.
 ## Install
 
 ```sh
-npm install dither.js
+npm install @code-of-chaos/dither
 ```
 
 ## Usage
 
 ```tsx
-import { DitherGridBackground } from "dither.js";
-import "dither.js/style.css";
+import { DitherGridBackground } from "@code-of-chaos/dither";
+import "@code-of-chaos/dither/style.css";
 
 export function Page() {
     return (

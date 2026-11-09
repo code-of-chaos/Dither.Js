@@ -1,5 +1,5 @@
 {
-    "name": "dither.js",
+    "name": "@code-of-chaos/dither",
     "version": "0.1.0",
     "description": "Animated bitmap-dithered gradient backgrounds for React, with a tileable Perlin/fBm noise engine for generating custom dither tiles.",
     "license": "GPL-3.0-only",
