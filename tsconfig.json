@@ -10,11 +10,12 @@
         "verbatimModuleSyntax": true,
         "moduleDetection": "force",
         "noEmit": true,
+        "jsx": "react-jsx",
 
         "strict": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true
     },
-    "include": ["src", "demo", "vite.config.ts"]
+    "include": ["src", "demo", "vite.config.ts", "vitest.setup.ts"]
 }

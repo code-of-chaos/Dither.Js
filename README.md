@@ -37,47 +37,27 @@ above the layers, so frameworks keep rendering their children normally.
 
 ### Framework recipes
 
-React (class, OOP):
+React (and Next.js) ship as an adapter entry - `"use client"` is baked in, so
+it drops into the Next.js App Router unchanged:
 
 ```tsx
-import { Component, createRef, type ReactNode } from "react";
-import {
-    DitherBackground,
-    type DitherBackgroundOptions,
-} from "@code-of-chaos/dither";
+import { DitherGridBackground } from "@code-of-chaos/dither/react";
 import "@code-of-chaos/dither/style.css";
 
-type Props = { options?: DitherBackgroundOptions; children?: ReactNode };
-
-export class DitherBackdrop extends Component<Props> {
-    private ref = createRef<HTMLDivElement>();
-    private background?: DitherBackground;
-
-    override componentDidMount(): void {
-        this.background = new DitherBackground(this.props.options);
-        this.background.mount(this.ref.current!);
-    }
-
-    override componentDidUpdate(prev: Props): void {
-        if (prev.options !== this.props.options) {
-            this.background?.update(this.props.options ?? {});
-        }
-    }
-
-    override componentWillUnmount(): void {
-        this.background?.destroy();
-    }
-
-    override render(): ReactNode {
-        return <div ref={this.ref}>{this.props.children}</div>;
-    }
+export function Page() {
+    return (
+        <DitherGridBackground className="min-h-screen w-full">
+            <h1>Hello world</h1>
+        </DitherGridBackground>
+    );
 }
 ```
 
-Next.js: the tile needs a browser canvas - mount inside a client component
-(`"use client"`) or in `useEffect`.
+`DitherGridBackground` accepts every `DitherBackgroundOptions` key as a prop
+plus normal div attributes and children. It is client-side only (the tile
+needs a canvas) - in Next.js keep it inside client components.
 
-Angular (directive):
+Angular (standalone directive):
 
 ```ts
 @Directive({ selector: "[ditherBackground]" })
@@ -96,7 +76,9 @@ export class DitherBackgroundDirective
     }
 
     ngOnChanges(): void {
-        this.background?.update(this.ditherBackground);
+        this.background?.update(
+            new DitherBackgroundView(this.ditherBackground).options,
+        );
     }
 
     ngOnDestroy(): void {
@@ -118,7 +100,11 @@ export function useDitherBackground(
         background = new DitherBackground(options.value);
         background.mount(el.value!);
     });
-    watch(options, (next) => background?.update(next), { deep: true });
+    watch(
+        options,
+        (next) => background?.update(new DitherBackgroundView(next).options),
+        { deep: true },
+    );
     onBeforeUnmount(() => background?.destroy());
 }
 ```
@@ -133,7 +119,8 @@ export function dither(
     const background = new DitherBackground(options);
     background.mount(node);
     return {
-        update: (next: DitherBackgroundOptions) => background.update(next),
+        update: (next: DitherBackgroundOptions) =>
+            background.update(new DitherBackgroundView(next).options),
         destroy: () => background.destroy(),
     };
 }
@@ -210,7 +197,8 @@ Notes:
 - The tile is generated in the browser (canvas), so mounting is client-side
   only.
 - `prefers-reduced-motion` disables the animations.
-- Zero runtime dependencies; plain TypeScript + DOM + CSS.
+- Zero runtime dependencies; `react` (18+) is an optional peer dependency,
+  needed only for the `./react` entry.
 
 ## License
 
