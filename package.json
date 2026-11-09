@@ -41,7 +41,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/ScarletBytesDev/Dither.Js.git"
+        "url": "git+https://github.com/code-of-chaos/Dither.Js.git"
     },
     "engines": {
         "node": ">=26"
