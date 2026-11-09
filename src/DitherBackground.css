@@ -1,19 +1,20 @@
 /*
  * Layered background for .dither-grid-background (applied by DitherBackground
  * to the element it mounts on):
- *   __noise / __noise-texture  — dithered tile, fade-masked, transform-scrolled
- *                                (the texture is oversized and clipped by the
- *                                wrapper so the scroll never exposes edges)
+ *   __noise / __noise-texture  — dithered tile, fade-masked (the texture node
+ *                                carries --noise-image; DitherBackground swaps
+ *                                it frame by frame so the dither itself boils
+ *                                and evolves instead of sliding)
  *   __grid                     — static CSS grid lines
  *   --glow::before             — optional ambient glow
  *   __content                  — optional wrapper that pins children above
  *                                all layers (in-flow content paints above the
  *                                negative-z layers regardless)
  *
- * Colors, sizes and animation timing come from CSS custom properties set by
- * DitherBackground, so they stay animatable at runtime. The layers sit at
- * z-index -1 inside the isolated stacking context: above the base fill,
- * below anything else in the element.
+ * Colors and sizes come from CSS custom properties set by DitherBackground,
+ * so they stay animatable at runtime. The layers sit at z-index -1 inside
+ * the isolated stacking context: above the base fill, below anything else
+ * in the element.
  */
 
 /*noinspection CssUnresolvedCustomProperty*/
@@ -56,36 +57,12 @@
 /*noinspection CssUnresolvedCustomProperty*/
 .dither-grid-background__noise-texture {
     position: absolute;
-    inset: calc(-1 * var(--noise-overscan));
+    inset: 0;
 
     background-image: var(--noise-image);
     background-size: var(--noise-tile-size) var(--noise-tile-size);
     background-repeat: repeat;
     image-rendering: pixelated;
-}
-
-/* Animated texture movement */
-
-/*noinspection CssUnresolvedCustomProperty*/
-.dither-grid-background--animated .dither-grid-background__noise-texture {
-    will-change: transform;
-    animation: dither-noise-scroll var(--noise-speed) linear infinite;
-}
-
-/*
- * Scrolls by exactly one tile (or a whole-tile multiple) per loop — the
- * travel distance is snapped to tile multiples in DitherBackgroundView,
- * so the jump back to the start is visually seamless.
- */
-/*noinspection CssUnresolvedCustomProperty*/
-@keyframes dither-noise-scroll {
-    from {
-        transform: translate3d(0, 0, 0);
-    }
-
-    to {
-        transform: translate3d(var(--noise-x), var(--noise-y), 0);
-    }
 }
 
 /*noinspection CssUnresolvedCustomProperty*/
@@ -141,10 +118,12 @@
     min-height: inherit;
 }
 
-/* Respect reduced motion preferences */
+/*
+ * Respect reduced motion preferences: the glow stops and DitherBackground
+ * keeps the texture frozen on its first frame.
+ */
 
 @media (prefers-reduced-motion: reduce) {
-    .dither-grid-background--animated .dither-grid-background__noise-texture,
     .dither-grid-background--glow::before {
         animation: none;
     }

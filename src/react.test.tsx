@@ -5,16 +5,16 @@ import { DitherTile } from "./DitherTile";
 import { DitherGridBackground } from "./react";
 
 describe("DitherGridBackground", () => {
-    let toDataURL: MockInstance;
+    let toDataURLFrames: MockInstance;
 
     beforeEach(() => {
-        toDataURL = vi
-            .spyOn(DitherTile.prototype, "toDataURL")
-            .mockReturnValue("data:image/png;base64,AAAA");
+        toDataURLFrames = vi
+            .spyOn(DitherTile.prototype, "toDataURLFrames")
+            .mockReturnValue(["data:image/png;base64,AAAA"]);
     });
 
     afterEach(() => {
-        toDataURL.mockRestore();
+        toDataURLFrames.mockRestore();
     });
 
     it("renders its children", () => {
@@ -76,14 +76,14 @@ describe("DitherGridBackground", () => {
         expect(root?.style.getPropertyValue("--noise-opacity")).toBe("0.25");
     });
 
-    it("generates the tile once and rebuilds it only for tile inputs", () => {
+    it("generates the frames once and rebuilds them only for tile inputs", () => {
         const { rerender } = render(<DitherGridBackground />);
-        expect(toDataURL).toHaveBeenCalledTimes(1);
+        expect(toDataURLFrames).toHaveBeenCalledTimes(1);
 
-        rerender(<DitherGridBackground gridSize={50} noiseSpeed={60} />);
-        expect(toDataURL).toHaveBeenCalledTimes(1);
+        rerender(<DitherGridBackground gridSize={50} fadeStart={10} />);
+        expect(toDataURLFrames).toHaveBeenCalledTimes(1);
 
         rerender(<DitherGridBackground gridSize={50} noiseSeed={2} />);
-        expect(toDataURL).toHaveBeenCalledTimes(2);
+        expect(toDataURLFrames).toHaveBeenCalledTimes(2);
     });
 });

@@ -6,7 +6,7 @@ import { DitherTile } from "./DitherTile";
  * back to `DitherBackgroundView.DEFAULTS`. Values are applied as CSS custom
  * properties, so they can be animated at runtime without rebuilding the
  * background; only `DitherBackgroundView.TILE_INPUTS` regenerate the dither
- * bitmap itself.
+ * frames themselves.
  */
 export type DitherBackgroundOptions = {
     backgroundColor?: string;
@@ -31,9 +31,8 @@ export type DitherBackgroundOptions = {
     noiseSeed?: number;
     noiseMaxFill?: number;
     noiseJitter?: number;
-    noiseSpeed?: number;
-    noiseAngle?: number;
-    noiseTravel?: number;
+    noiseFrames?: number;
+    noiseFps?: number;
 
     fadeStart?: number;
     fadeEnd?: number;
@@ -46,8 +45,8 @@ export type DitherBackgroundCssVars = Record<`--${string}`, string>;
 
 /**
  * Resolves `DitherBackgroundOptions` against the defaults and computes the
- * derived values (tile geometry, scroll travel, CSS custom properties). Used
- * internally by `DitherBackground`; framework wrappers can use it standalone.
+ * derived values (tile geometry, CSS custom properties). Used internally by
+ * `DitherBackground`; framework wrappers can use it standalone.
  */
 export class DitherBackgroundView {
     static readonly DEFAULTS: Required<DitherBackgroundOptions> = {
@@ -74,9 +73,8 @@ export class DitherBackgroundView {
         noiseSeed: 69,
         noiseMaxFill: 0.6,
         noiseJitter: 0.3,
-        noiseSpeed: 180,
-        noiseAngle: 100,
-        noiseTravel: 1,
+        noiseFrames: 8,
+        noiseFps: 8,
 
         fadeStart: 0,
         fadeEnd: 90,
@@ -85,7 +83,7 @@ export class DitherBackgroundView {
         animateGlow: true,
     };
 
-    /** Options that affect the generated tile; all others only set CSS variables. */
+    /** Options that affect the generated frames; all others only set CSS variables. */
     static readonly TILE_INPUTS: ReadonlyArray<keyof DitherBackgroundOptions> =
         [
             "noiseTileCells",
@@ -102,6 +100,7 @@ export class DitherBackgroundView {
             "noiseSeed",
             "noiseMaxFill",
             "noiseJitter",
+            "noiseFrames",
         ];
 
     readonly options: Required<DitherBackgroundOptions>;
@@ -121,7 +120,7 @@ export class DitherBackgroundView {
         });
     }
 
-    /** True when the two views would produce different dither tiles. */
+    /** True when the two views would produce different dither frames. */
     rebuildsTile(other: DitherBackgroundView): boolean {
         return DitherBackgroundView.TILE_INPUTS.some(
             (key) => this.options[key] !== other.options[key],
@@ -152,33 +151,7 @@ export class DitherBackgroundView {
         return this.options.noiseTileCells * this.options.noiseSize;
     }
 
-    /** Horizontal scroll distance in px, snapped to whole tiles (seamless loop). */
-    get travelX(): number {
-        const angle = (this.options.noiseAngle * Math.PI) / 180;
-        return (
-            Math.round(Math.cos(angle) * this.options.noiseTravel)
-            * this.tileSize
-        );
-    }
-
-    /** Vertical scroll distance in px, snapped to whole tiles (seamless loop). */
-    get travelY(): number {
-        const angle = (this.options.noiseAngle * Math.PI) / 180;
-        return (
-            Math.round(Math.sin(angle) * this.options.noiseTravel)
-            * this.tileSize
-        );
-    }
-
-    /** Oversizes the texture wrapper so the scroll never exposes its edges. */
-    get overscan(): number {
-        return (
-            Math.max(Math.abs(this.travelX), Math.abs(this.travelY))
-            + this.tileSize
-        );
-    }
-
-    cssVars(noiseImage: string): DitherBackgroundCssVars {
+    cssVars(): DitherBackgroundCssVars {
         const o = this.options;
         return {
             "--background-color": o.backgroundColor,
@@ -187,14 +160,9 @@ export class DitherBackgroundView {
             "--grid-size": `${o.gridSize}px`,
             "--grid-opacity": String(o.gridOpacity),
 
-            "--noise-image": `url("${noiseImage}")`,
             "--noise-tile-size": `${this.tileSize}px`,
             "--noise-color": o.noiseColor,
             "--noise-opacity": String(o.noiseOpacity),
-            "--noise-speed": `${o.noiseSpeed}s`,
-            "--noise-x": `${this.travelX}px`,
-            "--noise-y": `${this.travelY}px`,
-            "--noise-overscan": `${this.overscan}px`,
 
             "--fade-start": `${o.fadeStart}%`,
             "--fade-end": `${o.fadeEnd}%`,
