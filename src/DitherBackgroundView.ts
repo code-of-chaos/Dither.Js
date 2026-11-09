@@ -86,22 +86,23 @@ export class DitherBackgroundView {
     };
 
     /** Options that affect the generated tile; all others only set CSS variables. */
-    static readonly TILE_INPUTS: ReadonlyArray<keyof DitherBackgroundOptions> = [
-        "noiseTileCells",
-        "noiseColor",
-        "noiseDensity",
-        "noiseContrast",
-        "noiseScale",
-        "noiseOctaves",
-        "noiseDetailScale",
-        "noiseDetailOctaves",
-        "noiseDetailStrength",
-        "noiseClampLow",
-        "noiseClampHigh",
-        "noiseSeed",
-        "noiseMaxFill",
-        "noiseJitter",
-    ];
+    static readonly TILE_INPUTS: ReadonlyArray<keyof DitherBackgroundOptions> =
+        [
+            "noiseTileCells",
+            "noiseColor",
+            "noiseDensity",
+            "noiseContrast",
+            "noiseScale",
+            "noiseOctaves",
+            "noiseDetailScale",
+            "noiseDetailOctaves",
+            "noiseDetailStrength",
+            "noiseClampLow",
+            "noiseClampHigh",
+            "noiseSeed",
+            "noiseMaxFill",
+            "noiseJitter",
+        ];
 
     readonly options: Required<DitherBackgroundOptions>;
 
@@ -155,7 +156,8 @@ export class DitherBackgroundView {
     get travelX(): number {
         const angle = (this.options.noiseAngle * Math.PI) / 180;
         return (
-            Math.round(Math.cos(angle) * this.options.noiseTravel) * this.tileSize
+            Math.round(Math.cos(angle) * this.options.noiseTravel)
+            * this.tileSize
         );
     }
 
@@ -163,14 +165,17 @@ export class DitherBackgroundView {
     get travelY(): number {
         const angle = (this.options.noiseAngle * Math.PI) / 180;
         return (
-            Math.round(Math.sin(angle) * this.options.noiseTravel) * this.tileSize
+            Math.round(Math.sin(angle) * this.options.noiseTravel)
+            * this.tileSize
         );
     }
 
     /** Oversizes the texture wrapper so the scroll never exposes its edges. */
     get overscan(): number {
-        return Math.max(Math.abs(this.travelX), Math.abs(this.travelY))
-            + this.tileSize;
+        return (
+            Math.max(Math.abs(this.travelX), Math.abs(this.travelY))
+            + this.tileSize
+        );
     }
 
     cssVars(noiseImage: string): DitherBackgroundCssVars {
@@ -196,7 +201,9 @@ export class DitherBackgroundView {
         };
     }
 
-    private static defined(options: DitherBackgroundOptions): DitherBackgroundOptions {
+    private static defined(
+        options: DitherBackgroundOptions,
+    ): DitherBackgroundOptions {
         const entries = Object.entries(options).filter(
             ([, value]) => value !== undefined,
         );

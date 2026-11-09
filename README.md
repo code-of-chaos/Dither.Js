@@ -126,7 +126,10 @@ export function useDitherBackground(
 Svelte (action):
 
 ```ts
-export function dither(node: HTMLElement, options: DitherBackgroundOptions = {}) {
+export function dither(
+    node: HTMLElement,
+    options: DitherBackgroundOptions = {},
+) {
     const background = new DitherBackground(options);
     background.mount(node);
     return {

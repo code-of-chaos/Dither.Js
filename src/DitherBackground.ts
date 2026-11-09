@@ -110,7 +110,9 @@ export class DitherBackground {
             this.view.options.animateGlow,
         );
 
-        const vars: DitherBackgroundCssVars = this.view.cssVars(this.noiseImage);
+        const vars: DitherBackgroundCssVars = this.view.cssVars(
+            this.noiseImage,
+        );
         for (const [name, value] of Object.entries(vars)) {
             root.style.setProperty(name, value);
         }

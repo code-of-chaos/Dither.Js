@@ -39,13 +39,15 @@ describe("DitherBackground", () => {
     it("applies the base class and animation modifiers", () => {
         new DitherBackground().mount(container);
 
-        expect(container.classList.contains("dither-grid-background")).toBe(true);
+        expect(container.classList.contains("dither-grid-background")).toBe(
+            true,
+        );
         expect(
             container.classList.contains("dither-grid-background--animated"),
         ).toBe(true);
-        expect(container.classList.contains("dither-grid-background--glow")).toBe(
-            true,
-        );
+        expect(
+            container.classList.contains("dither-grid-background--glow"),
+        ).toBe(true);
     });
 
     it("toggles modifier classes when animations are disabled or enabled", () => {
@@ -58,15 +60,15 @@ describe("DitherBackground", () => {
         expect(
             container.classList.contains("dither-grid-background--animated"),
         ).toBe(false);
-        expect(container.classList.contains("dither-grid-background--glow")).toBe(
-            false,
-        );
+        expect(
+            container.classList.contains("dither-grid-background--glow"),
+        ).toBe(false);
 
         background.update({ animateGlow: true });
 
-        expect(container.classList.contains("dither-grid-background--glow")).toBe(
-            true,
-        );
+        expect(
+            container.classList.contains("dither-grid-background--glow"),
+        ).toBe(true);
         expect(
             container.classList.contains("dither-grid-background--animated"),
         ).toBe(false);
@@ -78,7 +80,9 @@ describe("DitherBackground", () => {
         );
 
         expect(container.style.getPropertyValue("--grid-size")).toBe("64px");
-        expect(container.style.getPropertyValue("--noise-opacity")).toBe("0.25");
+        expect(container.style.getPropertyValue("--noise-opacity")).toBe(
+            "0.25",
+        );
     });
 
     it("generates the tile once and rebuilds it only for tile inputs", () => {
@@ -119,7 +123,9 @@ describe("DitherBackground", () => {
         expect(
             container.querySelector(".dither-grid-background__grid"),
         ).toBeNull();
-        expect(container.classList.contains("dither-grid-background")).toBe(false);
+        expect(container.classList.contains("dither-grid-background")).toBe(
+            false,
+        );
         expect(container.style.getPropertyValue("--grid-size")).toBe("");
         expect(background.element).toBeNull();
     });
