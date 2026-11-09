@@ -1,0 +1,23 @@
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+    plugins: [react()],
+    build: {
+        lib: {
+            entry: "src/index.ts",
+            formats: ["es"],
+            fileName: "index",
+            cssFileName: "style",
+        },
+        rollupOptions: {
+            external: ["react", "react-dom", "react/jsx-runtime"],
+        },
+        sourcemap: true,
+    },
+    test: {
+        environment: "happy-dom",
+        include: ["src/**/*.test.{ts,tsx}"],
+        setupFiles: ["./vitest.setup.ts"],
+    },
+});
