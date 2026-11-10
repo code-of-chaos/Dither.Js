@@ -5,23 +5,28 @@ import type {
     DitherBackgroundOptions,
 } from "./DitherBackgroundView";
 import { DitherBackgroundView } from "./DitherBackgroundView";
+import { RgbColor } from "./RgbColor";
 
 /**
- * Framework-agnostic layered background: an animated Bayer-dithered noise
- * texture, a static grid and an optional ambient glow. Plain DOM - mount it
- * on any element from any framework (or none).
+ * Framework-agnostic layered background: a slowly flowing Bayer-dithered
+ * noise texture, a static grid and an optional ambient glow. Plain DOM -
+ * mount it on any element from any framework (or none).
  *
  * `mount()` decorates the container: it prepends the hidden layer elements
  * and applies the base class plus the CSS custom properties. Anything else
  * in the container renders above the layers, so frameworks keep rendering
- * their children normally. Options map 1:1 to the CSS custom properties and
- * can be changed at any time via `update()`; the dither frames are only
- * regenerated when one of the tile inputs changes.
+ * their children normally. Options map to CSS custom properties or drive
+ * the render loop and can be changed at any time via `update()`; the noise
+ * field is only rebuilt when one of `DitherBackgroundView.FIELD_INPUTS`
+ * changes.
  *
- * The texture is not slid across the screen: while `animateNoise` is on (and
- * the user has not requested reduced motion) a low-frequency ticker cycles
- * pre-rendered frames, so the dither pattern itself boils and evolves in
- * place. Frames are built on a canvas, so `mount()` requires a browser DOM.
+ * The texture is not slid across the screen: a requestAnimationFrame loop
+ * re-samples the noise field at a drifting offset (`noiseAngle`,
+ * `noiseTravel`, `noiseSpeed`) and repaints a canvas, so the dither pattern
+ * itself flows smoothly and the dots reform where the moving field crosses
+ * their thresholds. The loop is capped at `noiseFps`; `animateNoise: false`
+ * or `prefers-reduced-motion` freezes the first frame. Frames are computed
+ * on typed arrays, so `mount()` requires a browser DOM (canvas only).
  */
 export class DitherBackground {
     static readonly ROOT_CLASS = "dither-grid-background";
@@ -29,11 +34,19 @@ export class DitherBackground {
     static readonly GLOW_CLASS = "dither-grid-background--glow";
 
     private view: DitherBackgroundView;
-    private frames: string[] = [];
-    private frameIndex = 0;
-    private timer: ReturnType<typeof setInterval> | null = null;
+    private tile?: DitherTile;
+    private frame?: ImageData;
+    private tileCanvas?: HTMLCanvasElement;
+    private tileCtx?: CanvasRenderingContext2D;
+    private display?: HTMLCanvasElement;
+    private displayCtx?: CanvasRenderingContext2D;
+    private rgb?: RgbColor;
+    private rgbSource?: string;
+    private raf: number | null = null;
+    private elapsed = 0;
+    private lastTime: number | null = null;
+    private lastRender: number | null = null;
     private root: HTMLElement | null = null;
-    private texture: HTMLElement | null = null;
     private layers: HTMLElement[] = [];
 
     constructor(options: DitherBackgroundOptions = {}) {
@@ -47,7 +60,7 @@ export class DitherBackground {
         }
         this.root = container;
 
-        const texture = document.createElement("div");
+        const texture = document.createElement("canvas");
         texture.className = "dither-grid-background__noise-texture";
         const noise = document.createElement("div");
         noise.className = "dither-grid-background__noise";
@@ -58,30 +71,27 @@ export class DitherBackground {
         grid.className = "dither-grid-background__grid";
         grid.setAttribute("aria-hidden", "true");
 
-        this.texture = texture;
+        this.display = texture;
+        this.displayCtx = texture.getContext("2d") ?? undefined;
         this.layers = [noise, grid];
         container.prepend(...this.layers);
 
-        this.frames = this.createNoiseFrames();
-        this.frameIndex = 0;
+        this.rebuildField();
         this.apply();
-        this.applyFrame();
         this.syncAnimation();
     }
 
-    /** Merges new options; regenerates the frames only when tile inputs change. */
+    /** Merges new options; rebuilds the field only when field inputs change. */
     update(partial: DitherBackgroundOptions): void {
         const next = this.view.merge(partial);
-        const rebuild = this.view.rebuildsTile(next);
+        const rebuild = this.view.rebuildsField(next);
         this.view = next;
 
         if (this.root && rebuild) {
-            this.frames = this.createNoiseFrames();
-            this.frameIndex = 0;
+            this.rebuildField();
         }
 
         this.apply();
-        this.applyFrame();
         this.syncAnimation();
     }
 
@@ -104,9 +114,14 @@ export class DitherBackground {
         }
 
         this.root = null;
-        this.texture = null;
-        this.frames = [];
-        this.frameIndex = 0;
+        this.display = undefined;
+        this.displayCtx = undefined;
+        this.tile = undefined;
+        this.frame = undefined;
+        this.tileCanvas = undefined;
+        this.tileCtx = undefined;
+        this.rgb = undefined;
+        this.rgbSource = undefined;
     }
 
     /** The decorated container element, or `null` before mount / after destroy. */
@@ -134,39 +149,110 @@ export class DitherBackground {
         }
     }
 
-    /** Publishes the current frame on the texture node only. */
-    private applyFrame(): void {
-        const texture = this.texture;
-        if (!texture || this.frames.length === 0) return;
-        texture.style.setProperty(
-            "--noise-image",
-            `url("${this.frames[this.frameIndex]}")`,
-        );
+    private rebuildField(): void {
+        const cells = this.view.options.noiseTileCells;
+        this.tile = new DitherTile(this.view.tileOptions());
+        this.tileCanvas = document.createElement("canvas");
+        this.tileCanvas.width = cells;
+        this.tileCanvas.height = cells;
+        this.tileCtx = this.tileCanvas.getContext("2d") ?? undefined;
+        this.frame = this.tileCtx?.createImageData(cells, cells);
     }
 
     private syncAnimation(): void {
+        this.render();
         this.stopAnimation();
         if (!this.root || !this.view.options.animateNoise) return;
         if (DitherBackground.prefersReducedMotion()) return;
 
-        const interval = 1000 / Math.max(1, this.view.options.noiseFps);
-        this.timer = setInterval(() => {
-            if (this.frames.length === 0) return;
-            this.frameIndex = (this.frameIndex + 1) % this.frames.length;
-            this.applyFrame();
-        }, interval);
+        this.lastTime = null;
+        this.raf = requestAnimationFrame(this.tick);
     }
+
+    private tick = (time: number): void => {
+        this.raf = requestAnimationFrame(this.tick);
+        if (this.lastTime === null) {
+            this.lastTime = time;
+            return;
+        }
+
+        const delta = Math.min(time - this.lastTime, 250);
+        this.lastTime = time;
+        this.elapsed += delta;
+
+        const interval = 1000 / Math.max(1, this.view.options.noiseFps);
+        if (this.lastRender === null || time - this.lastRender >= interval) {
+            this.lastRender = time;
+            this.render();
+        }
+    };
 
     private stopAnimation(): void {
-        if (this.timer === null) return;
-        clearInterval(this.timer);
-        this.timer = null;
+        if (this.raf !== null) cancelAnimationFrame(this.raf);
+        this.raf = null;
+        this.lastTime = null;
+        this.lastRender = null;
     }
 
-    private createNoiseFrames(): string[] {
-        return new DitherTile(this.view.tileOptions()).toDataURLFrames(
-            this.view.options.noiseFrames,
+    private render(): void {
+        const tile = this.tile;
+        const frame = this.frame;
+        const tileCtx = this.tileCtx;
+        const tileCanvas = this.tileCanvas;
+        const display = this.display;
+        const displayCtx = this.displayCtx;
+        if (
+            !tile
+            || !frame
+            || !tileCtx
+            || !tileCanvas
+            || !display
+            || !displayCtx
+        ) {
+            return;
+        }
+
+        this.syncSize(display);
+
+        const o = this.view.options;
+        const loopMs = o.noiseSpeed * 1000;
+        const phase = loopMs > 0 ? (this.elapsed % loopMs) / loopMs : 0;
+        const cells = o.noiseTileCells;
+        const driftX = this.view.tileDriftX * cells * phase;
+        const driftY = this.view.tileDriftY * cells * phase;
+
+        if (this.rgb === undefined || this.rgbSource !== o.noiseColor) {
+            this.rgb = RgbColor.fromCss(tileCtx, o.noiseColor);
+            this.rgbSource = o.noiseColor;
+        }
+        tile.renderFrame(
+            phase,
+            driftX,
+            driftY,
+            this.rgb,
+            this.view.tileOptions(),
+            frame,
         );
+        tileCtx.putImageData(frame, 0, 0);
+
+        const size = Math.max(1, this.view.tileSize);
+        displayCtx.imageSmoothingEnabled = false;
+        displayCtx.clearRect(0, 0, display.width, display.height);
+        for (let y = 0; y < display.height; y += size) {
+            for (let x = 0; x < display.width; x += size) {
+                displayCtx.drawImage(tileCanvas, x, y, size, size);
+            }
+        }
+    }
+
+    /** Keeps the display canvas backing store matched to its CSS box. */
+    private syncSize(display: HTMLCanvasElement): void {
+        const width = display.clientWidth;
+        const height = display.clientHeight;
+        if (display.width !== width || display.height !== height) {
+            display.width = width;
+            display.height = height;
+        }
     }
 
     private static prefersReducedMotion(): boolean {

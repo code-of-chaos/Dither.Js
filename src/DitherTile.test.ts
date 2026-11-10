@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { DitherTileOptions } from "./DitherTile";
 import { DitherTile } from "./DitherTile";
+import { RgbColor } from "./RgbColor";
 
 const OPTIONS: DitherTileOptions = {
     cells: 32,
@@ -19,93 +20,83 @@ const OPTIONS: DitherTileOptions = {
     jitter: 0.3,
 };
 
-/**
- * Minimal canvas double: `toDataURL` serializes the alpha channel of the
- * last written image, so equal pixels produce equal URLs and the frame
- * semantics can be asserted without a real 2D context.
- */
-function fakeCanvas(): HTMLCanvasElement {
-    let fillStyle = "";
-    let last: { data: Uint8ClampedArray } | null = null;
+const RGB = new RgbColor(255, 0, 0);
 
-    const ctx = {
-        get fillStyle() {
-            return fillStyle;
-        },
-        set fillStyle(value: string) {
-            fillStyle = value;
-        },
-        createImageData: (width: number, height: number) => ({
-            width,
-            height,
-            data: new Uint8ClampedArray(width * height * 4),
-        }),
-        putImageData: (image: { data: Uint8ClampedArray }) => {
-            last = image;
-        },
+function render(
+    tile: DitherTile,
+    phase: number,
+    driftX: number,
+    driftY: number,
+): Uint8ClampedArray {
+    const out = {
+        data: new Uint8ClampedArray(OPTIONS.cells * OPTIONS.cells * 4),
     };
-
-    return {
-        width: 0,
-        height: 0,
-        getContext: () => ctx,
-        toDataURL: () => {
-            if (!last) return "data:,";
-            const alphas: number[] = [];
-            for (let i = 3; i < last.data.length; i += 4)
-                alphas.push(last.data[i]);
-            return `data:image/png;base64,${alphas.join(".")}`;
-        },
-    } as unknown as HTMLCanvasElement;
+    tile.renderFrame(phase, driftX, driftY, RGB, OPTIONS, out);
+    return out.data;
 }
 
-describe("DitherTile.toDataURLFrames", () => {
-    const realCreateElement = document.createElement.bind(document);
-
-    beforeEach(() => {
-        vi.spyOn(document, "createElement").mockImplementation(((
-            tag: string,
-        ) =>
-            tag === "canvas"
-                ? fakeCanvas()
-                : realCreateElement(
-                      tag,
-                  )) as unknown as typeof document.createElement);
+describe("DitherTile.renderFrame", () => {
+    it("is deterministic for the same inputs", () => {
+        const tile = new DitherTile(OPTIONS);
+        expect(render(tile, 0.25, 3, -7)).toEqual(render(tile, 0.25, 3, -7));
     });
 
-    afterEach(() => {
-        vi.restoreAllMocks();
+    it("closes the loop: full phase with whole-tile drift equals the first frame", () => {
+        const tile = new DitherTile(OPTIONS);
+        const first = render(tile, 0, 0, 0);
+        const wrapped = render(tile, 1, OPTIONS.cells * 2, OPTIONS.cells * -3);
+        expect(wrapped).toEqual(first);
     });
 
-    it("returns the requested number of frames", () => {
-        expect(new DitherTile(OPTIONS).toDataURLFrames(4)).toHaveLength(4);
-    });
-
-    it("clamps the frame count to at least one", () => {
-        expect(new DitherTile(OPTIONS).toDataURLFrames(0)).toHaveLength(1);
-    });
-
-    it("makes every frame different so the pattern boils and evolves", () => {
-        const frames = new DitherTile(OPTIONS).toDataURLFrames(8);
-        for (let i = 1; i < frames.length; i++) {
-            expect(frames[i]).not.toBe(frames[i - 1]);
-        }
-        expect(frames[0]).not.toBe(frames[frames.length - 1]);
-    });
-
-    it("is deterministic for the same options", () => {
-        expect(new DitherTile(OPTIONS).toDataURLFrames(4)).toEqual(
-            new DitherTile(OPTIONS).toDataURLFrames(4),
+    it("wraps drift on whole tiles", () => {
+        const tile = new DitherTile(OPTIONS);
+        const base = render(tile, 0.5, 0, 0);
+        const shifted = render(
+            tile,
+            0.5,
+            OPTIONS.cells * 3,
+            OPTIONS.cells * -2,
         );
+        expect(shifted).toEqual(base);
     });
 
-    it("keeps the static tile identical to the first frame", () => {
+    it("moves the pattern when the field drifts", () => {
         const tile = new DitherTile(OPTIONS);
-        expect(tile.toDataURL()).toBe(tile.toDataURLFrames(1)[0]);
+        const still = render(tile, 0, 0, 0);
+        const drifted = render(tile, 0, 5, 0);
+        const driftedDown = render(tile, 0, 0, 5);
+        expect(drifted).not.toEqual(still);
+        expect(driftedDown).not.toEqual(still);
+        expect(driftedDown).not.toEqual(drifted);
     });
 
-    it("does not depend on the loop length for the first frame", () => {
+    it("morphs continuously across the phase", () => {
         const tile = new DitherTile(OPTIONS);
-        expect(tile.toDataURLFrames(8)[0]).toBe(tile.toDataURLFrames(3)[0]);
+        const start = render(tile, 0, 0, 0);
+        const middle = render(tile, 0.5, 0, 0);
+        const quarter = render(tile, 0.25, 0, 0);
+        expect(middle).not.toEqual(start);
+        expect(quarter).not.toEqual(start);
+        expect(quarter).not.toEqual(middle);
+    });
+
+    it("updates the threshold style without touching the field", () => {
+        const tile = new DitherTile(OPTIONS);
+        const strict = render(tile, 0, 0, 0);
+        const out = {
+            data: new Uint8ClampedArray(OPTIONS.cells * OPTIONS.cells * 4),
+        };
+        tile.renderFrame(0, 0, 0, RGB, { ...OPTIONS, maxFill: 0.05 }, out);
+        expect(out.data).not.toEqual(strict);
+    });
+});
+
+describe("DitherTile.toDataURL", () => {
+    it("matches the phase-0 frame rendered manually", () => {
+        const tile = new DitherTile(OPTIONS);
+        const expected = `data:image/png;base64,${Array.from(
+            render(tile, 0, 0, 0),
+        ).join(".")}`;
+        expect(tile.toDataURL()).toBe(expected);
     });
 });

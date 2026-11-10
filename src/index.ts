@@ -4,7 +4,11 @@ export type {
     DitherBackgroundOptions,
 } from "./DitherBackgroundView";
 export { DitherBackgroundView } from "./DitherBackgroundView";
-export type { DitherTileOptions } from "./DitherTile";
+export type {
+    DitherFrameStyle,
+    DitherFrameTarget,
+    DitherTileOptions,
+} from "./DitherTile";
 export { DitherTile } from "./DitherTile";
 export { FractalBrownianNoise } from "./FractalBrownianNoise";
 export { MathUtils } from "./MathUtils";

@@ -1,6 +1,6 @@
 {
     "name": "@code-of-chaos/dither",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "Framework-agnostic animated bitmap-dithered gradient backgrounds, with a tileable Perlin/fBm noise engine for generating custom dither tiles.",
     "license": "GPL-3.0-only",
     "type": "module",

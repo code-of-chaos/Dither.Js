@@ -1,10 +1,10 @@
 /*
  * Layered background for .dither-grid-background (applied by DitherBackground
  * to the element it mounts on):
- *   __noise / __noise-texture  — dithered tile, fade-masked (the texture node
- *                                carries --noise-image; DitherBackground swaps
- *                                it frame by frame so the dither itself boils
- *                                and evolves instead of sliding)
+ *   __noise / __noise-texture  — dithered tile as a canvas that
+ *                                DitherBackground repaints frame by frame,
+ *                                so the dither itself flows instead of
+ *                                sliding a finished bitmap
  *   __grid                     — static CSS grid lines
  *   --glow::before             — optional ambient glow
  *   __content                  — optional wrapper that pins children above
@@ -58,10 +58,10 @@
 .dither-grid-background__noise-texture {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
 
-    background-image: var(--noise-image);
-    background-size: var(--noise-tile-size) var(--noise-tile-size);
-    background-repeat: repeat;
     image-rendering: pixelated;
 }
 

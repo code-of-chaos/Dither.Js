@@ -6,7 +6,8 @@ generating your own dither tiles.
 
 The texture is a real Bayer-dithered noise bitmap (Perlin islands + fine
 detail), generated on a canvas and animated frame by frame - the dither
-pattern itself boils and evolves in place. Everything visual - colors, grid,
+pattern itself flows in a direction you choose and the dots reform where
+the moving noise crosses their thresholds. Everything visual - colors, grid,
 fade, speed - is an option, driven through CSS custom properties so it can
 be animated at runtime.
 
@@ -25,7 +26,7 @@ import "@code-of-chaos/dither/style.css";
 const background = new DitherBackground({ noiseColor: "var(--accent)" });
 background.mount(document.getElementById("root")!);
 
-// Animate at runtime - cheap, the frames only rebuild for tile inputs:
+// Animate at runtime - cheap, the noise field only rebuilds for field inputs:
 background.update({ gridSize: 64, noiseOpacity: 0.4 });
 
 // Revert the element to its unmounted state:
@@ -129,20 +130,21 @@ export function dither(
 
 Every visual option is optional (defaults in parentheses):
 
-| Option                                                          | Purpose                                                                |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `backgroundColor`                                               | Base fill, any CSS color or gradient                                   |
-| `gridColor`, `gridSize`, `gridOpacity`                          | Structural grid lines (steel, 41px, 0.23)                              |
-| `noiseColor`, `noiseOpacity`                                    | Dither tile color and layer opacity (scarlet, 0.5)                     |
-| `noiseSize`                                                     | Displayed size of each dither pixel in px (3)                          |
-| `noiseDensity`, `noiseContrast`, `noiseMaxFill`, `noiseJitter`  | Dither character: fill amount, hardness, density cap, Bayer/random mix |
-| `noiseScale`, `noiseOctaves`                                    | Island field (clump size, fBm depth)                                   |
-| `noiseDetailScale`, `noiseDetailOctaves`, `noiseDetailStrength` | Fine detail field layered on the islands                               |
-| `noiseClampLow`, `noiseClampHigh`                               | Soft-clamp the noise: clean voids low, no saturation high              |
-| `noiseTileCells`, `noiseSeed`                                   | Tile resolution and reproducible randomness                            |
-| `noiseFrames`, `noiseFps`                                       | Boil animation: frames per loop and playback rate (8, 8)               |
-| `fadeStart`, `fadeEnd`                                          | Vertical fade of the dither layer (0%, 90%)                            |
-| `animateNoise`, `animateGlow`                                   | Enable the boil animation / ambient glow (both on)                     |
+| Option                                                          | Purpose                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `backgroundColor`                                               | Base fill, any CSS color or gradient                                          |
+| `gridColor`, `gridSize`, `gridOpacity`                          | Structural grid lines (steel, 41px, 0.23)                                     |
+| `noiseColor`, `noiseOpacity`                                    | Dither tile color and layer opacity (scarlet, 0.5)                            |
+| `noiseSize`                                                     | Displayed size of each dither pixel in px (3)                                 |
+| `noiseDensity`, `noiseContrast`, `noiseMaxFill`, `noiseJitter`  | Dither character: fill amount, hardness, density cap, Bayer/random mix        |
+| `noiseScale`, `noiseOctaves`                                    | Island field (clump size, fBm depth)                                          |
+| `noiseDetailScale`, `noiseDetailOctaves`, `noiseDetailStrength` | Fine detail field layered on the islands                                      |
+| `noiseClampLow`, `noiseClampHigh`                               | Soft-clamp the noise: clean voids low, no saturation high                     |
+| `noiseTileCells`, `noiseSeed`                                   | Tile resolution and reproducible randomness                                   |
+| `noiseSpeed`, `noiseAngle`, `noiseTravel`                       | Flow: seconds per loop, direction in degrees, distance in tiles (180, 100, 1) |
+| `noiseFps`                                                      | Render cap in frames per second (30)                                          |
+| `fadeStart`, `fadeEnd`                                          | Vertical fade of the dither layer (0%, 90%)                                   |
+| `animateNoise`, `animateGlow`                                   | Enable the flow animation / ambient glow (both on)                            |
 
 Colors accept `var(--token, fallback)` references; they are resolved against
 the document root, so theme variables work as parameters.

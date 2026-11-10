@@ -3,20 +3,25 @@ import type { MockInstance } from "vitest";
 import { DitherBackground } from "./DitherBackground";
 import { DitherTile } from "./DitherTile";
 
+const CELLS = 8;
+
 describe("DitherBackground", () => {
-    let toDataURLFrames: MockInstance;
+    let renderFrame: MockInstance;
     let container: HTMLElement;
 
     beforeEach(() => {
-        vi.useFakeTimers();
-        toDataURLFrames = vi
-            .spyOn(DitherTile.prototype, "toDataURLFrames")
-            .mockImplementation((count: number) =>
-                Array.from(
-                    { length: Math.max(1, Math.round(count)) },
-                    (_, i) => `frame-${i}`,
-                ),
-            );
+        vi.useFakeTimers({
+            toFake: [
+                "setTimeout",
+                "clearTimeout",
+                "setInterval",
+                "clearInterval",
+                "Date",
+                "requestAnimationFrame",
+                "cancelAnimationFrame",
+            ],
+        });
+        renderFrame = vi.spyOn(DitherTile.prototype, "renderFrame");
         vi.spyOn(window, "matchMedia").mockReturnValue({
             matches: false,
         } as MediaQueryList);
@@ -30,19 +35,23 @@ describe("DitherBackground", () => {
         vi.restoreAllMocks();
     });
 
-    function textureOf(background: DitherBackground): HTMLElement {
-        const texture = background.element?.querySelector<HTMLElement>(
-            ".dither-grid-background__noise-texture",
-        );
-        if (!texture) throw new Error("noise texture not found");
-        return texture;
+    function mount(
+        options: ConstructorParameters<typeof DitherBackground>[0] = {},
+    ): DitherBackground {
+        const background = new DitherBackground({
+            noiseTileCells: CELLS,
+            animateNoise: false,
+            ...options,
+        });
+        background.mount(container);
+        return background;
     }
 
     it("prepends hidden noise and grid layers above existing content", () => {
         const child = document.createElement("p");
         container.append(child);
 
-        new DitherBackground().mount(container);
+        mount();
 
         const layers = container.querySelectorAll(
             ".dither-grid-background__noise, .dither-grid-background__grid",
@@ -54,11 +63,16 @@ describe("DitherBackground", () => {
         expect(container.firstElementChild?.className).toBe(
             "dither-grid-background__noise",
         );
+        expect(
+            container.querySelector(
+                "canvas.dither-grid-background__noise-texture",
+            ),
+        ).not.toBeNull();
         expect(child.parentElement).toBe(container);
     });
 
     it("applies the base class and animation modifiers", () => {
-        new DitherBackground().mount(container);
+        mount({ animateNoise: true, animateGlow: true });
 
         expect(container.classList.contains("dither-grid-background")).toBe(
             true,
@@ -72,11 +86,7 @@ describe("DitherBackground", () => {
     });
 
     it("toggles modifier classes when animations are disabled or enabled", () => {
-        const background = new DitherBackground({
-            animateNoise: false,
-            animateGlow: false,
-        });
-        background.mount(container);
+        const background = mount({ animateGlow: false });
 
         expect(
             container.classList.contains("dither-grid-background--animated"),
@@ -96,9 +106,7 @@ describe("DitherBackground", () => {
     });
 
     it("forwards visual parameters as CSS custom properties", () => {
-        new DitherBackground({ gridSize: 64, noiseOpacity: 0.25 }).mount(
-            container,
-        );
+        mount({ gridSize: 64, noiseOpacity: 0.25 });
 
         expect(container.style.getPropertyValue("--grid-size")).toBe("64px");
         expect(container.style.getPropertyValue("--noise-opacity")).toBe(
@@ -106,75 +114,79 @@ describe("DitherBackground", () => {
         );
     });
 
-    it("generates the frames once and rebuilds them only for tile inputs", () => {
-        const background = new DitherBackground();
-        background.mount(container);
-        expect(toDataURLFrames).toHaveBeenCalledTimes(1);
+    it("rebuilds the noise field only for field inputs", () => {
+        const background = mount();
+        expect(new Set(renderFrame.mock.contexts).size).toBe(1);
 
         background.update({ gridSize: 50, noiseFps: 12 });
-        expect(toDataURLFrames).toHaveBeenCalledTimes(1);
+        expect(new Set(renderFrame.mock.contexts).size).toBe(1);
 
         background.update({ noiseSeed: 2 });
-        expect(toDataURLFrames).toHaveBeenCalledTimes(2);
+        expect(new Set(renderFrame.mock.contexts).size).toBe(2);
 
         background.update({ noiseSeed: 2, noiseColor: "red" });
-        expect(toDataURLFrames).toHaveBeenCalledTimes(3);
+        expect(new Set(renderFrame.mock.contexts).size).toBe(2);
 
-        background.update({ noiseFrames: 4 });
-        expect(toDataURLFrames).toHaveBeenCalledTimes(4);
+        background.update({ noiseScale: 12 });
+        expect(new Set(renderFrame.mock.contexts).size).toBe(3);
     });
 
     it("merges updates and ignores undefined values", () => {
-        const background = new DitherBackground();
-        background.mount(container);
+        const background = mount({ noiseSize: 3 });
 
         background.update({ gridSize: 8, noiseSize: undefined });
 
         expect(container.style.getPropertyValue("--grid-size")).toBe("8px");
         expect(container.style.getPropertyValue("--noise-tile-size")).toBe(
-            "1536px",
+            "24px",
         );
     });
 
-    it("cycles frames at the configured rate and wraps seamlessly", () => {
-        const background = new DitherBackground({
-            noiseFrames: 3,
-            noiseFps: 10,
+    it("flows the field along the configured angle over the loop", () => {
+        mount({
+            animateNoise: true,
+            noiseAngle: 0,
+            noiseTravel: 1,
+            noiseSpeed: 4,
+            noiseFps: 25,
         });
-        background.mount(container);
-        const texture = textureOf(background);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-0",
-        );
+        vi.advanceTimersByTime(1000);
 
-        vi.advanceTimersByTime(100);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-1",
-        );
+        const calls = renderFrame.mock.calls;
+        expect(calls.length).toBeGreaterThan(3);
 
-        vi.advanceTimersByTime(100);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-2",
-        );
+        const first = calls[0][0] as number;
+        const last = calls[calls.length - 1][0] as number;
+        expect(last).toBeGreaterThan(first);
 
-        vi.advanceTimersByTime(100);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-0",
-        );
+        for (const [phase, driftX, driftY] of calls) {
+            expect(driftY).toBe(0);
+            expect(driftX).toBeCloseTo(CELLS * (phase as number));
+        }
+    });
+
+    it("caps the render rate at noiseFps", () => {
+        const slow = mount({ animateNoise: true, noiseFps: 5 });
+        vi.advanceTimersByTime(1000);
+        const slowRenders = renderFrame.mock.calls.length;
+        slow.destroy();
+
+        renderFrame.mockClear();
+        const fast = mount({ animateNoise: true, noiseFps: 30 });
+        vi.advanceTimersByTime(1000);
+        const fastRenders = renderFrame.mock.calls.length;
+        fast.destroy();
+
+        expect(slowRenders).toBeGreaterThanOrEqual(3);
+        expect(slowRenders).toBeLessThanOrEqual(12);
+        expect(fastRenders).toBeGreaterThan(slowRenders);
+        expect(fastRenders).toBeLessThanOrEqual(45);
     });
 
     it("does not animate when the noise animation is disabled", () => {
-        const background = new DitherBackground({
-            animateNoise: false,
-            noiseFps: 10,
-        });
-        background.mount(container);
-        const texture = textureOf(background);
-
-        vi.advanceTimersByTime(500);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-0",
-        );
+        mount();
+        vi.advanceTimersByTime(1000);
+        expect(renderFrame).toHaveBeenCalledTimes(1);
     });
 
     it("freezes on the first frame under prefers-reduced-motion", () => {
@@ -182,40 +194,26 @@ describe("DitherBackground", () => {
             matches: true,
         } as MediaQueryList);
 
-        const background = new DitherBackground({ noiseFps: 10 });
-        background.mount(container);
-        const texture = textureOf(background);
-
-        vi.advanceTimersByTime(500);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-0",
-        );
+        mount({ animateNoise: true });
+        vi.advanceTimersByTime(1000);
+        expect(renderFrame).toHaveBeenCalledTimes(1);
     });
 
-    it("starts and stops the ticker with animateNoise updates", () => {
-        const background = new DitherBackground({
-            animateNoise: false,
-            noiseFps: 10,
-        });
-        background.mount(container);
-        const texture = textureOf(background);
+    it("starts and stops the render loop with animateNoise updates", () => {
+        const background = mount();
 
         background.update({ animateNoise: true });
-        vi.advanceTimersByTime(100);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-1",
-        );
-
-        background.update({ animateNoise: false });
         vi.advanceTimersByTime(500);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-1",
-        );
+        expect(renderFrame.mock.calls.length).toBeGreaterThan(1);
+
+        const paused = renderFrame.mock.calls.length;
+        background.update({ animateNoise: false });
+        vi.advanceTimersByTime(1000);
+        expect(renderFrame).toHaveBeenCalledTimes(paused + 1);
     });
 
     it("destroy removes layers, classes and CSS custom properties", () => {
-        const background = new DitherBackground();
-        background.mount(container);
+        const background = mount();
         background.destroy();
 
         expect(
@@ -231,15 +229,12 @@ describe("DitherBackground", () => {
         expect(background.element).toBeNull();
     });
 
-    it("destroy stops the frame ticker", () => {
-        const background = new DitherBackground({ noiseFps: 10 });
-        background.mount(container);
-        const texture = textureOf(background);
-
+    it("destroy stops the render loop", () => {
+        const background = mount({ animateNoise: true });
         background.destroy();
+
+        renderFrame.mockClear();
         vi.advanceTimersByTime(1000);
-        expect(texture.style.getPropertyValue("--noise-image")).toContain(
-            "frame-0",
-        );
+        expect(renderFrame).not.toHaveBeenCalled();
     });
 });

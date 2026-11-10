@@ -4,9 +4,8 @@ import { DitherTile } from "./DitherTile";
 /**
  * Every visual knob of a dither background. All fields are optional and fall
  * back to `DitherBackgroundView.DEFAULTS`. Values are applied as CSS custom
- * properties, so they can be animated at runtime without rebuilding the
- * background; only `DitherBackgroundView.TILE_INPUTS` regenerate the dither
- * frames themselves.
+ * properties or drive the render loop, so they can be animated at runtime;
+ * only `DitherBackgroundView.FIELD_INPUTS` rebuild the cached noise field.
  */
 export type DitherBackgroundOptions = {
     backgroundColor?: string;
@@ -31,7 +30,9 @@ export type DitherBackgroundOptions = {
     noiseSeed?: number;
     noiseMaxFill?: number;
     noiseJitter?: number;
-    noiseFrames?: number;
+    noiseSpeed?: number;
+    noiseAngle?: number;
+    noiseTravel?: number;
     noiseFps?: number;
 
     fadeStart?: number;
@@ -45,8 +46,9 @@ export type DitherBackgroundCssVars = Record<`--${string}`, string>;
 
 /**
  * Resolves `DitherBackgroundOptions` against the defaults and computes the
- * derived values (tile geometry, CSS custom properties). Used internally by
- * `DitherBackground`; framework wrappers can use it standalone.
+ * derived values (tile geometry, flow direction, CSS custom properties).
+ * Used internally by `DitherBackground`; framework wrappers can use it
+ * standalone.
  */
 export class DitherBackgroundView {
     static readonly DEFAULTS: Required<DitherBackgroundOptions> = {
@@ -73,8 +75,10 @@ export class DitherBackgroundView {
         noiseSeed: 69,
         noiseMaxFill: 0.6,
         noiseJitter: 0.3,
-        noiseFrames: 8,
-        noiseFps: 8,
+        noiseSpeed: 180,
+        noiseAngle: 100,
+        noiseTravel: 1,
+        noiseFps: 30,
 
         fadeStart: 0,
         fadeEnd: 90,
@@ -83,24 +87,16 @@ export class DitherBackgroundView {
         animateGlow: true,
     };
 
-    /** Options that affect the generated frames; all others only set CSS variables. */
-    static readonly TILE_INPUTS: ReadonlyArray<keyof DitherBackgroundOptions> =
+    /** Options that rebuild the cached noise field; all others are live. */
+    static readonly FIELD_INPUTS: ReadonlyArray<keyof DitherBackgroundOptions> =
         [
             "noiseTileCells",
-            "noiseColor",
-            "noiseDensity",
-            "noiseContrast",
             "noiseScale",
             "noiseOctaves",
             "noiseDetailScale",
             "noiseDetailOctaves",
             "noiseDetailStrength",
-            "noiseClampLow",
-            "noiseClampHigh",
             "noiseSeed",
-            "noiseMaxFill",
-            "noiseJitter",
-            "noiseFrames",
         ];
 
     readonly options: Required<DitherBackgroundOptions>;
@@ -120,9 +116,9 @@ export class DitherBackgroundView {
         });
     }
 
-    /** True when the two views would produce different dither frames. */
-    rebuildsTile(other: DitherBackgroundView): boolean {
-        return DitherBackgroundView.TILE_INPUTS.some(
+    /** True when the two views would rebuild the cached noise field. */
+    rebuildsField(other: DitherBackgroundView): boolean {
+        return DitherBackgroundView.FIELD_INPUTS.some(
             (key) => this.options[key] !== other.options[key],
         );
     }
@@ -149,6 +145,21 @@ export class DitherBackgroundView {
 
     get tileSize(): number {
         return this.options.noiseTileCells * this.options.noiseSize;
+    }
+
+    /**
+     * Horizontal field drift in whole tiles per loop. Snapped to integers
+     * so the loop closes on a whole-tile offset and wraps invisibly.
+     */
+    get tileDriftX(): number {
+        const angle = (this.options.noiseAngle * Math.PI) / 180;
+        return Math.round(Math.cos(angle) * this.options.noiseTravel);
+    }
+
+    /** Vertical field drift in whole tiles per loop. */
+    get tileDriftY(): number {
+        const angle = (this.options.noiseAngle * Math.PI) / 180;
+        return Math.round(Math.sin(angle) * this.options.noiseTravel);
     }
 
     cssVars(): DitherBackgroundCssVars {
